@@ -29,30 +29,35 @@ import multilang.depends.util.file.FileUtil;
 import java.io.File;
 
 public class LeadingNameStripper implements ILeadingNameStrippper {
-	String leadingSrcPath;
-	private String[] additionalStripPaths;
-	private boolean isStripLeadingPath;
-	public LeadingNameStripper(boolean isStripLeadingPath, String leadingSrcPath, String[] additionalStripPaths) {
-		this.isStripLeadingPath = isStripLeadingPath;
-		this.leadingSrcPath = leadingSrcPath;
-		this.additionalStripPaths = additionalStripPaths;
-	}
-	@Override
-	public String stripFilename(String path) {
-		for (String p:additionalStripPaths) {
-			
-			String prefix = p;
-			if (isStripLeadingPath)
-				p = leadingSrcPath + File.separator + p;
-			prefix = FileUtil.uniqFilePath(prefix);
-			if (path.startsWith(prefix)) {
-				return path.substring(prefix.length());
-			}
-		}
-		
-		if (path.startsWith(leadingSrcPath) && isStripLeadingPath) {
-			path = path.substring(leadingSrcPath.length());
-		}
-		return path;
-	}
+    String leadingSrcPath;
+    private String[] additionalStripPaths;
+    private boolean isStripLeadingPath;
+
+    public LeadingNameStripper(boolean isStripLeadingPath, String leadingSrcPath, String[] additionalStripPaths) {
+        this.isStripLeadingPath = isStripLeadingPath;
+        this.leadingSrcPath = leadingSrcPath;
+        this.additionalStripPaths = additionalStripPaths;
+    }
+
+    @Override
+    public String stripFilename(String path) {
+        try {
+            for (String p : additionalStripPaths) {
+                String prefix = p;
+                if (isStripLeadingPath)
+                    p = leadingSrcPath + File.separator + p;
+                prefix = FileUtil.uniqFilePath(prefix);
+                if (path.startsWith(prefix)) {
+                    return path.substring(prefix.length() + 1);
+                }
+            }
+
+            if (path.startsWith(leadingSrcPath) && isStripLeadingPath) {
+                path = path.substring(leadingSrcPath.length() + 1);
+            }
+            return path;
+        } catch (Exception e) {
+            return path;
+        }
+    }
 }
