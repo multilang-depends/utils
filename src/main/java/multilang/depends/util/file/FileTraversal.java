@@ -26,6 +26,11 @@ package multilang.depends.util.file;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.List;
+import java.nio.file.FileSystems;
+import java.nio.file.PathMatcher;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 
 /**
  * Recursively visit every file in the given root path using the 
@@ -43,6 +48,8 @@ public class FileTraversal {
 	
 	IFileVisitor visitor;
 	private ArrayList<String> extensionFilters = new ArrayList<>();
+	private ArrayList<String> excludePatterns = new ArrayList<>();
+	private List<PathMatcher> excludeMatchers = new ArrayList<>();
 	boolean shouldVisitDirectory = false;
 	boolean shouldVisitFile = true;
 	public FileTraversal(IFileVisitor visitor){
@@ -66,9 +73,11 @@ public class FileTraversal {
 			return;
 		for (int i = 0; i < files.length; i++) {
 			if (files[i].isDirectory()) {
-				travers(files[i]);
-				if (shouldVisitDirectory) {
-					invokeVisitor(files[i]);
+				if (!isExcluded(files[i])) {
+					travers(files[i]);
+					if (shouldVisitDirectory) {
+						invokeVisitor(files[i]);
+					}
 				}
 			} else {
 				if (shouldVisitFile) {
@@ -79,6 +88,9 @@ public class FileTraversal {
 	}
 
 	private void invokeVisitor(File f) {
+		if (isExcluded(f)) {
+			return;
+		}
 		if (extensionFilters.size()==0) {
 			visitor.visit(f);
 		}else {
@@ -90,6 +102,19 @@ public class FileTraversal {
 		}
 	}
 
+	private boolean isExcluded(File f) {
+		if (excludeMatchers.isEmpty()) {
+			return false;
+		}
+		String filePath = f.getAbsolutePath();
+		for (PathMatcher matcher : excludeMatchers) {
+			if (matcher.matches(Paths.get(filePath))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public FileTraversal extensionFilter(String ext) {
 		this.extensionFilters.add(ext.toLowerCase());
 		return this;
@@ -99,5 +124,32 @@ public class FileTraversal {
 		for (String fileSuffix:fileSuffixes){
 			extensionFilter(fileSuffix);
 		}
+	}
+
+	public FileTraversal excludeFilter(String[] patterns) {
+		for (String pattern : patterns) {
+			this.excludePatterns.add(pattern);
+			String globPattern = pattern.startsWith("glob:") ? pattern : "glob:" + pattern;
+			PathMatcher matcher = FileSystems.getDefault().getPathMatcher(globPattern);
+			this.excludeMatchers.add(matcher);
+			
+			// Also add matchers with **/ prefix for subdirectory matching
+			// This allows "Projects/**" to match "/path/to/Projects/file.py"
+			if (!pattern.startsWith("glob:**") && !pattern.startsWith("**")) {
+				// Pattern for matching contents within the excluded directory
+				String subdirPattern = "glob:**/" + pattern;
+				PathMatcher subdirMatcher = FileSystems.getDefault().getPathMatcher(subdirPattern);
+				this.excludeMatchers.add(subdirMatcher);
+				
+				// Also add pattern without the trailing /** to match the directory itself
+				// e.g., "Projects/**" -> "**/Projects" to match "/path/to/Projects"
+				if (pattern.endsWith("/**")) {
+					String dirPattern = "glob:**/" + pattern.substring(0, pattern.length() - 3);
+					PathMatcher dirMatcher = FileSystems.getDefault().getPathMatcher(dirPattern);
+					this.excludeMatchers.add(dirMatcher);
+				}
+			}
+		}
+		return this;
 	}
 }
